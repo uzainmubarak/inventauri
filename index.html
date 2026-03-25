@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="theme-color" content="#0e0e0d"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>Golden Studio — Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0e0e0d;
+    --surface: #161614;
+    --surface2: #1e1e1b;
+    --border: #2a2a26;
+    --gold: #C9A961;
+    --gold-dim: #9a7d42;
+    --text: #f0ede6;
+    --text-muted: #7a7870;
+    --text-soft: #b0ac9f;
+    --danger: #c96161;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    padding-bottom: 80px;
+  }
+
+  /* HEADER */
+  header {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .brand {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--gold);
+    letter-spacing: 0.03em;
+  }
+
+  .brand span {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    display: block;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+
+  .btn-add {
+    background: var(--gold);
+    color: #0e0e0d;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 9px 18px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: opacity 0.15s;
+  }
+
+  .btn-add:active { opacity: 0.8; }
+
+  .btn-icon {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    border-radius: var(--radius-sm);
+    padding: 9px 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-icon:hover { border-color: var(--gold-dim); color: var(--gold); }
+  .btn-icon:active { opacity: 0.7; }
+
+  /* SCANNER */
+  #scannerOverlay {
+    position: fixed; inset: 0; background: #000; z-index: 300;
+    display: none; flex-direction: column;
+  }
+  #scannerOverlay.open { display: flex; }
+  #scannerVideo { width: 100%; flex: 1; object-fit: cover; }
+  .scanner-ui {
+    position: absolute; inset: 0; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .scanner-frame {
+    width: 220px; height: 220px; border: 2px solid var(--gold);
+    border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+  }
+  .scanner-label {
+    margin-top: 24px; color: rgba(255,255,255,0.7);
+    font-size: 13px; letter-spacing: 0.05em;
+  }
+  .scanner-close {
+    position: absolute; top: 20px; right: 20px;
+    background: rgba(255,255,255,0.15); border: none; color: #fff;
+    border-radius: 50%; width: 40px; height: 40px;
+    font-size: 20px; cursor: pointer; pointer-events: all;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .scanner-result {
+    position: absolute; bottom: 40px; left: 20px; right: 20px;
+    background: var(--surface); border: 1px solid var(--gold-dim);
+    border-radius: var(--radius); padding: 14px 16px;
+    pointer-events: all; display: none;
+  }
+  .scanner-result.show { display: block; }
+  .scanner-result-code { color: var(--gold); font-size: 13px; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .scanner-result-name { font-family: 'Playfair Display', serif; font-size: 16px; margin-bottom: 12px; }
+  .scanner-result-btns { display: flex; gap: 8px; }
+
+  /* SEARCH & FILTER */
+  .controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .search-wrap {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+  }
+
+  #searchInput {
+    width: 100%;
+    padding: 9px 12px 9px 36px;
+    -webkit-appearance: none;
+    appearance: none;
+    caret-color: var(--gold);
+  }
+
+  #filterCat {
+    flex-shrink: 0;
+    width: auto;
+    padding: 9px 28px 9px 12px;
+  }
+
+  .search-wrap svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  input[type="search"], input[type="text"], input[type="number"], select, textarea {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 300;
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  input[type="search"]:focus, input[type="text"]:focus,
+  input[type="number"]:focus, select:focus, textarea:focus {
+    border-color: var(--gold-dim);
+  }
+
+
+
+  select {
+    padding: 9px 12px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a7870' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+  }
+
+  /* STATS BAR */
+  .stats {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .stats::-webkit-scrollbar { display: none; }
+
+  .stat-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 5px 14px;
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--text-soft);
+  }
+
+  .stat-pill strong {
+    color: var(--gold);
+    font-weight: 500;
+  }
+
+  /* INVENTORY GRID */
+  .grid {
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card:active { transform: scale(0.98); }
+  .card:hover { border-color: var(--gold-dim); }
+
+  .card-img {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: cover;
+    display: block;
+    background: var(--surface2);
+  }
+
+  .card-img-placeholder {
+    width: 100%;
+    aspect-ratio: 3/4;
+    background: var(--surface2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    gap: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .card-body {
+    padding: 10px 12px 12px;
+  }
+
+  .card-code {
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+
+  .card-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .cat-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .card-price {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-soft);
+  }
+
+  /* EMPTY STATE */
+  .empty {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+
+  .empty svg { margin-bottom: 16px; opacity: 0.3; }
+
+  .empty p {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    color: var(--text-soft);
+    margin-bottom: 6px;
+  }
+
+  .empty small { font-size: 13px; }
+
+  /* MODAL */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    display: none;
+    align-items: flex-end;
+    backdrop-filter: blur(2px);
+  }
+
+  .overlay.open { display: flex; }
+
+  .sheet {
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 20px 20px 40px;
+    animation: slideUp 0.25s cubic-bezier(0.32,0.72,0,1);
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .sheet-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  .form-group {
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .form-group input[type="text"],
+  .form-group input[type="number"],
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 72px;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* Image upload */
+  .img-upload {
+    width: 100%;
+    aspect-ratio: 3/4;
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    gap: 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: border-color 0.15s;
+    margin-bottom: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .img-upload:hover { border-color: var(--gold-dim); }
+
+  .img-upload img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .img-upload input {
+    display: none;
+  }
+
+  .img-upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .btn-primary {
+    flex: 1;
+    background: var(--gold);
+    color: #0e0e0d;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-primary:active { opacity: 0.8; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 13px 20px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid rgba(201,97,97,0.3);
+    border-radius: var(--radius-sm);
+    padding: 13px 20px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    min-height: 44px;
+  }
+
+  /* Detail view */
+  .detail-img {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: cover;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    background: var(--surface2);
+  }
+
+  .detail-img-placeholder {
+    width: 100%;
+    aspect-ratio: 3/4;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .detail-code {
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .detail-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .detail-field {
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+  }
+
+  .detail-field label {
+    font-size: 10px;
+    margin-bottom: 3px;
+  }
+
+  .detail-field span {
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  .detail-price-box {
+    background: linear-gradient(135deg, rgba(201,169,97,0.1), rgba(201,169,97,0.05));
+    border: 1px solid rgba(201,169,97,0.2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .detail-price-box label { margin-bottom: 0; }
+
+  .detail-price {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--gold);
+  }
+
+  .detail-notes {
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-size: 13px;
+    color: var(--text-soft);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="brand">
+      Golden Studio
+      <span>Inventory</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn-icon" onclick="openScanner()" title="Scan Barcode">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 9V6a1 1 0 0 1 1-1h3M3 15v3a1 1 0 0 0 1 1h3M21 9V6a1 1 0 0 0-1-1h-3M21 15v3a1 1 0 0 1-1 1h-3"/>
+          <line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/>
+          <line x1="13" y1="8" x2="13" y2="16"/><line x1="16" y1="8" x2="16" y2="13"/>
+        </svg>
+      </button>
+      <button class="btn-icon" onclick="exportCSV()" title="Export CSV">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </button>
+      <button class="btn-add" onclick="openAdd()">+ Add</button>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="search-wrap">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search by name or code…" oninput="renderGrid()" autocomplete="off" autocorrect="off" spellcheck="false"/>
+    </div>
+    <select id="filterCat" onchange="renderGrid()">
+      <option value="">All</option>
+      <option value="Bridal">Bridal</option>
+      <option value="Party Wear">Party Wear</option>
+      <option value="Formal">Formal</option>
+      <option value="Ready-made">Ready-made</option>
+    </select>
+  </div>
+</header>
+
+<div class="stats" id="statsBar"></div>
+
+<div class="grid" id="inventoryGrid"></div>
+
+<!-- ADD / EDIT SHEET -->
+<div class="overlay" id="formOverlay" onclick="closeOnBg(event, 'formOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="formTitle">New Dress</div>
+
+    <div class="img-upload" id="imgUploadArea" onclick="document.getElementById('imgInput').click()">
+      <img id="imgPreview" style="display:none"/>
+      <label class="img-upload-label" id="imgUploadLabel">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="3"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+        Tap to add photo
+      </label>
+      <input type="file" id="imgInput" accept="image/*" onchange="handleImg(event)"/>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Dress Code</label>
+        <input type="text" id="fCode" placeholder="e.g. BR-001"/>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <select id="fCat">
+          <option>Bridal</option>
+          <option>Party Wear</option>
+          <option>Formal</option>
+          <option>Ready-made</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Dress Name / Description</label>
+      <input type="text" id="fName" placeholder="e.g. Red Embroidered Bridal"/>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Price (PKR)</label>
+        <input type="number" id="fPrice" placeholder="0"/>
+      </div>
+      <div class="form-group">
+        <label>Fabric</label>
+        <input type="text" id="fFabric" placeholder="e.g. Chiffon"/>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Color</label>
+        <input type="text" id="fColor" placeholder="e.g. Deep Red"/>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="fStatus">
+          <option>Available</option>
+          <option>Sold</option>
+          <option>Reserved</option>
+          <option>On Display</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="fNotes" placeholder="Any extra details…"></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-ghost" onclick="closeSheet('formOverlay')">Cancel</button>
+      <button class="btn-danger" id="btnDelete" style="display:none" onclick="deleteDress()">Delete</button>
+      <button class="btn-primary" onclick="saveDress()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL SHEET -->
+<div class="overlay" id="detailOverlay" onclick="closeOnBg(event, 'detailOverlay')">
+  <div class="sheet" id="detailSheet"></div>
+</div>
+
+<!-- SCANNER OVERLAY -->
+<div id="scannerOverlay">
+  <video id="scannerVideo" autoplay playsinline muted></video>
+  <div class="scanner-ui">
+    <div class="scanner-frame"></div>
+    <div class="scanner-label">Align barcode within the frame</div>
+  </div>
+  <button class="scanner-close" onclick="closeScanner()">✕</button>
+  <div class="scanner-result" id="scannerResult">
+    <div class="scanner-result-code" id="scannerResultCode"></div>
+    <div class="scanner-result-name" id="scannerResultName"></div>
+    <div class="scanner-result-btns">
+      <button class="btn-ghost" style="flex:1" onclick="closeScanner()">Close</button>
+      <button class="btn-primary" style="flex:1" id="scannerViewBtn">View Dress</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const DB_KEY = 'gs_inventory_v1';
+  let inventory = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  let editingId = null;
+  let currentImg = null;
+
+  function save() {
+    localStorage.setItem(DB_KEY, JSON.stringify(inventory));
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  // STATS
+  function renderStats() {
+    const total = inventory.length;
+    const avail = inventory.filter(d => d.status === 'Available').length;
+    const bridal = inventory.filter(d => d.cat === 'Bridal').length;
+    const totalVal = inventory.reduce((s, d) => s + (parseInt(d.price) || 0), 0);
+
+    document.getElementById('statsBar').innerHTML = `
+      <div class="stat-pill"><strong>${total}</strong> Total</div>
+      <div class="stat-pill"><strong>${avail}</strong> Available</div>
+      <div class="stat-pill"><strong>${bridal}</strong> Bridal</div>
+      <div class="stat-pill">Value <strong>₨${totalVal.toLocaleString()}</strong></div>
+    `;
+  }
+
+  // GRID
+  function renderGrid() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const cat = document.getElementById('filterCat').value;
+
+    let items = inventory.filter(d => {
+      const matchQ = !q || d.name?.toLowerCase().includes(q) || d.code?.toLowerCase().includes(q);
+      const matchCat = !cat || d.cat === cat;
+      return matchQ && matchCat;
+    });
+
+    const grid = document.getElementById('inventoryGrid');
+
+    if (!items.length) {
+      grid.innerHTML = `
+        <div class="empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+          <p>${inventory.length ? 'No results found' : 'No dresses yet'}</p>
+          <small>${inventory.length ? 'Try a different search' : 'Tap + Add Dress to begin'}</small>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = items.map(d => `
+      <div class="card" onclick="openDetail('${d.id}')">
+        ${d.img
+          ? `<img class="card-img" src="${d.img}" alt="${d.name}"/>`
+          : `<div class="card-img-placeholder">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              No photo
+             </div>`}
+        <div class="card-body">
+          <div class="card-code">${d.code || '—'}</div>
+          <div class="card-name">${d.name || 'Unnamed'}</div>
+          <div class="card-meta">
+            <span class="cat-badge">${d.cat}</span>
+            <span class="card-price">${d.price ? '₨' + parseInt(d.price).toLocaleString() : '—'}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // OPEN ADD
+  function openAdd() {
+    editingId = null;
+    currentImg = null;
+    document.getElementById('formTitle').textContent = 'New Dress';
+    document.getElementById('fCode').value = '';
+    document.getElementById('fName').value = '';
+    document.getElementById('fPrice').value = '';
+    document.getElementById('fFabric').value = '';
+    document.getElementById('fColor').value = '';
+    document.getElementById('fNotes').value = '';
+    document.getElementById('fCat').value = 'Bridal';
+    document.getElementById('fStatus').value = 'Available';
+    document.getElementById('imgPreview').style.display = 'none';
+    document.getElementById('imgUploadLabel').style.display = 'flex';
+    document.getElementById('btnDelete').style.display = 'none';
+    document.getElementById('formOverlay').classList.add('open');
+  }
+
+  // OPEN EDIT
+  function openEdit(id) {
+    const d = inventory.find(x => x.id === id);
+    if (!d) return;
+    editingId = id;
+    currentImg = d.img || null;
+    closeSheet('detailOverlay');
+    document.getElementById('formTitle').textContent = 'Edit Dress';
+    document.getElementById('fCode').value = d.code || '';
+    document.getElementById('fName').value = d.name || '';
+    document.getElementById('fPrice').value = d.price || '';
+    document.getElementById('fFabric').value = d.fabric || '';
+    document.getElementById('fColor').value = d.color || '';
+    document.getElementById('fNotes').value = d.notes || '';
+    document.getElementById('fCat').value = d.cat || 'Bridal';
+    document.getElementById('fStatus').value = d.status || 'Available';
+    document.getElementById('btnDelete').style.display = 'block';
+
+    if (d.img) {
+      document.getElementById('imgPreview').src = d.img;
+      document.getElementById('imgPreview').style.display = 'block';
+      document.getElementById('imgUploadLabel').style.display = 'none';
+    } else {
+      document.getElementById('imgPreview').style.display = 'none';
+      document.getElementById('imgUploadLabel').style.display = 'flex';
+    }
+
+    document.getElementById('formOverlay').classList.add('open');
+  }
+
+  // HANDLE IMAGE
+  function handleImg(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      currentImg = ev.target.result;
+      document.getElementById('imgPreview').src = currentImg;
+      document.getElementById('imgPreview').style.display = 'block';
+      document.getElementById('imgUploadLabel').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // SAVE
+  function saveDress() {
+    const dress = {
+      id: editingId || uid(),
+      code: document.getElementById('fCode').value.trim(),
+      name: document.getElementById('fName').value.trim(),
+      price: document.getElementById('fPrice').value,
+      fabric: document.getElementById('fFabric').value.trim(),
+      color: document.getElementById('fColor').value.trim(),
+      notes: document.getElementById('fNotes').value.trim(),
+      cat: document.getElementById('fCat').value,
+      status: document.getElementById('fStatus').value,
+      img: currentImg,
+      updatedAt: Date.now()
+    };
+
+    if (!dress.name && !dress.code) {
+      alert('Add at least a name or code.');
+      return;
+    }
+
+    if (editingId) {
+      const idx = inventory.findIndex(x => x.id === editingId);
+      inventory[idx] = dress;
+    } else {
+      inventory.unshift(dress);
+    }
+
+    save();
+    closeSheet('formOverlay');
+    renderGrid();
+    renderStats();
+  }
+
+  // DELETE
+  function deleteDress() {
+    inventory = inventory.filter(x => x.id !== editingId);
+    save();
+    closeSheet('formOverlay');
+    renderGrid();
+    renderStats();
+  }
+
+  // DETAIL
+  function openDetail(id) {
+    const d = inventory.find(x => x.id === id);
+    if (!d) return;
+
+    document.getElementById('detailSheet').innerHTML = `
+      <div class="sheet-handle"></div>
+      ${d.img
+        ? `<img class="detail-img" src="${d.img}" alt="${d.name}"/>`
+        : `<div class="detail-img-placeholder">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+           </div>`}
+      <div class="detail-code">${d.code || 'No Code'}</div>
+      <div class="detail-name">${d.name || 'Unnamed Dress'}</div>
+
+      ${d.price ? `
+      <div class="detail-price-box">
+        <label>Price</label>
+        <div class="detail-price">₨${parseInt(d.price).toLocaleString()}</div>
+      </div>` : ''}
+
+      <div class="detail-grid">
+        <div class="detail-field">
+          <label>Category</label>
+          <span>${d.cat}</span>
+        </div>
+        <div class="detail-field">
+          <label>Status</label>
+          <span>${d.status}</span>
+        </div>
+        ${d.fabric ? `<div class="detail-field"><label>Fabric</label><span>${d.fabric}</span></div>` : ''}
+        ${d.color ? `<div class="detail-field"><label>Color</label><span>${d.color}</span></div>` : ''}
+      </div>
+
+      ${d.notes ? `<div class="detail-notes">${d.notes}</div>` : ''}
+
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="closeSheet('detailOverlay')">Close</button>
+        <button class="btn-primary" onclick="openEdit('${d.id}')">Edit</button>
+      </div>
+    `;
+
+    document.getElementById('detailOverlay').classList.add('open');
+  }
+
+  function closeSheet(id) {
+    document.getElementById(id).classList.remove('open');
+  }
+
+  function closeOnBg(e, id) {
+    if (e.target === document.getElementById(id)) closeSheet(id);
+  }
+
+  // BARCODE SCANNER
+  let scannerStream = null;
+  let scannerInterval = null;
+  let barcodeDetector = null;
+
+  async function openScanner() {
+    const overlay = document.getElementById('scannerOverlay');
+    overlay.classList.add('open');
+    document.getElementById('scannerResult').classList.remove('show');
+
+    try {
+      if ('BarcodeDetector' in window) {
+        barcodeDetector = new BarcodeDetector({ formats: ['qr_code','code_128','code_39','ean_13','ean_8','upc_a','upc_e','data_matrix'] });
+      }
+      scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const video = document.getElementById('scannerVideo');
+      video.srcObject = scannerStream;
+      await video.play();
+
+      if (barcodeDetector) {
+        scannerInterval = setInterval(async () => {
+          try {
+            const codes = await barcodeDetector.detect(video);
+            if (codes.length > 0) handleScan(codes[0].rawValue);
+          } catch(e) {}
+        }, 400);
+      } else {
+        // Fallback: prompt manual entry
+        setTimeout(() => {
+          const code = prompt('BarcodeDetector not supported on this browser.\nEnter dress code manually:');
+          if (code) handleScan(code.trim());
+        }, 500);
+      }
+    } catch(e) {
+      alert('Camera access denied or not available.');
+      closeScanner();
+    }
+  }
+
+  function handleScan(raw) {
+    clearInterval(scannerInterval);
+    const match = inventory.find(d => d.code && d.code.toLowerCase() === raw.toLowerCase());
+    const resultBox = document.getElementById('scannerResult');
+    document.getElementById('scannerResultCode').textContent = raw;
+
+    if (match) {
+      document.getElementById('scannerResultName').textContent = match.name || 'Unnamed';
+      document.getElementById('scannerViewBtn').onclick = () => { closeScanner(); openDetail(match.id); };
+      document.getElementById('scannerViewBtn').textContent = 'View Dress';
+    } else {
+      document.getElementById('scannerResultName').textContent = 'Not found — add as new?';
+      document.getElementById('scannerViewBtn').onclick = () => {
+        closeScanner();
+        openAdd();
+        setTimeout(() => { document.getElementById('fCode').value = raw; }, 100);
+      };
+      document.getElementById('scannerViewBtn').textContent = 'Add Dress';
+    }
+    resultBox.classList.add('show');
+  }
+
+  function closeScanner() {
+    clearInterval(scannerInterval);
+    if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
+    document.getElementById('scannerVideo').srcObject = null;
+    document.getElementById('scannerOverlay').classList.remove('open');
+  }
+
+  // CSV EXPORT
+  function exportCSV() {
+    if (!inventory.length) { alert('No inventory to export.'); return; }
+    const headers = ['Code','Name','Category','Price (PKR)','Fabric','Color','Status','Notes'];
+    const rows = inventory.map(d => [
+      d.code || '', d.name || '', d.cat || '', d.price || '',
+      d.fabric || '', d.color || '', d.status || '', (d.notes || '').replace(/\n/g,' ')
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `golden_studio_inventory_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // INIT
+  renderGrid();
+  renderStats();
+</script>
+</body>
+</html>
