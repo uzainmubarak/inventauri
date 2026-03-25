@@ -764,13 +764,59 @@
 </div>
 
 <script>
-  const DB_KEY = 'gs_inventory_v1';
-  let inventory = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  let inventory = [];
   let editingId = null;
   let currentImg = null;
 
-  function save() {
-    localStorage.setItem(DB_KEY, JSON.stringify(inventory));
+  // INDEXEDDB SETUP
+  const IDB_NAME = 'inventauri';
+  const IDB_STORE = 'dresses';
+  let db = null;
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = e => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains(IDB_STORE)) {
+          d.createObjectStore(IDB_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = e => { db = e.target.result; resolve(db); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function dbGetAll() {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function dbPut(item) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const req = tx.objectStore(IDB_STORE).put(item);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function dbDelete(id) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const req = tx.objectStore(IDB_STORE).delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function save() {
+    // save entire inventory to IDB
+    for (const item of inventory) await dbPut(item);
   }
 
   function uid() {
@@ -915,8 +961,8 @@
     reader.readAsDataURL(file);
   }
 
-  // SAVE
-  function saveDress() {
+  // SAVE DRESS
+  async function saveDress() {
     const dress = {
       id: editingId || uid(),
       code: document.getElementById('fCode').value.trim(),
@@ -936,6 +982,8 @@
       return;
     }
 
+    await dbPut(dress);
+
     if (editingId) {
       const idx = inventory.findIndex(x => x.id === editingId);
       inventory[idx] = dress;
@@ -943,16 +991,15 @@
       inventory.unshift(dress);
     }
 
-    save();
     closeSheet('formOverlay');
     renderGrid();
     renderStats();
   }
 
   // DELETE
-  function deleteDress() {
+  async function deleteDress() {
+    await dbDelete(editingId);
     inventory = inventory.filter(x => x.id !== editingId);
-    save();
     closeSheet('formOverlay');
     renderGrid();
     renderStats();
@@ -1103,8 +1150,12 @@
   }
 
   // INIT
-  renderGrid();
-  renderStats();
+  openDB().then(async () => {
+    inventory = await dbGetAll();
+    inventory.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    renderGrid();
+    renderStats();
+  });
 
   // UNREGISTER ANY EXISTING SERVICE WORKERS
   if ('serviceWorker' in navigator) {
