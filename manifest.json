@@ -1,0 +1,17 @@
+{
+  "name": "Inventauri — Golden Studio",
+  "short_name": "Inventauri",
+  "description": "Offline-first dress inventory for Golden Studio.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0e0e0d",
+  "theme_color": "#0e0e0d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%230e0e0d'/><text x='50%' y='55%' font-size='100' text-anchor='middle' dominant-baseline='middle' fill='%23C9A961'>G</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
