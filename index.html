@@ -648,10 +648,10 @@
     </div>
     <select id="filterCat" onchange="renderGrid()">
       <option value="">All</option>
-      <option value="Bridal">Bridal</option>
-      <option value="Party Wear">Party Wear</option>
-      <option value="Formal">Formal</option>
-      <option value="Ready-made">Ready-made</option>
+      <option value="B">Bridal</option>
+      <option value="P">Party Wear</option>
+      <option value="F">Formal</option>
+      <option value="R">Ready-made</option>
     </select>
   </div>
 </header>
@@ -681,16 +681,19 @@
 
     <div class="form-row">
       <div class="form-group">
-        <label>Dress Code</label>
-        <input type="text" id="fCode" placeholder="e.g. BR-001"/>
+        <label>Dress Code
+          <span id="codeLockBtn" style="display:none;margin-left:6px;color:var(--gold);font-size:10px;cursor:pointer;letter-spacing:0.05em;" onclick="unlockCode()">🔒 tap to edit</span>
+        </label>
+        <input type="text" id="fCode" placeholder="Auto-generated"/>
+        <div id="codeWarning" style="display:none;margin-top:5px;font-size:11px;color:var(--danger);line-height:1.4;"></div>
       </div>
       <div class="form-group">
         <label>Category</label>
-        <select id="fCat">
-          <option>Bridal</option>
-          <option>Party Wear</option>
-          <option>Formal</option>
-          <option>Ready-made</option>
+        <select id="fCat" onchange="onCatChange()">
+          <option value="B">Bridal</option>
+          <option value="P">Party Wear</option>
+          <option value="F">Formal</option>
+          <option value="R">Ready-made</option>
         </select>
       </div>
     </div>
@@ -782,15 +785,19 @@
   // INDEXEDDB SETUP
   const IDB_NAME = 'inventauri';
   const IDB_STORE = 'dresses';
+  const SEQ_STORE = 'sequences';
   let db = null;
 
   function openDB() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(IDB_NAME, 1);
+      const req = indexedDB.open(IDB_NAME, 2);
       req.onupgradeneeded = e => {
         const d = e.target.result;
         if (!d.objectStoreNames.contains(IDB_STORE)) {
           d.createObjectStore(IDB_STORE, { keyPath: 'id' });
+        }
+        if (!d.objectStoreNames.contains(SEQ_STORE)) {
+          d.createObjectStore(SEQ_STORE, { keyPath: 'cat' });
         }
       };
       req.onsuccess = e => { db = e.target.result; resolve(db); };
@@ -825,13 +832,81 @@
     });
   }
 
+  // SEQUENCE FUNCTIONS
+  function seqGet(cat) {
+    return new Promise((resolve) => {
+      const tx = db.transaction(SEQ_STORE, 'readonly');
+      const req = tx.objectStore(SEQ_STORE).get(cat);
+      req.onsuccess = () => resolve(req.result ? req.result.val : 0);
+      req.onerror = () => resolve(0);
+    });
+  }
+
+  function seqSet(cat, val) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(SEQ_STORE, 'readwrite');
+      const req = tx.objectStore(SEQ_STORE).put({ cat, val });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function seqNext(cat) {
+    const current = await seqGet(cat);
+    return current + 1;
+  }
+
+  function formatCode(cat, num) {
+    return `GS-${cat}-${String(num).padStart(3, '0')}`;
+  }
+
   async function save() {
-    // save entire inventory to IDB
     for (const item of inventory) await dbPut(item);
   }
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  const CAT_LABELS = { B: 'Bridal', P: 'Party Wear', F: 'Formal', R: 'Ready-made' };
+  function catLabel(c) { return CAT_LABELS[c] || c; }
+  let originalCode = '';
+  let originalCat = '';
+
+  function unlockCode() {
+    codeIsLocked = false;
+    const codeField = document.getElementById('fCode');
+    codeField.readOnly = false;
+    codeField.style.opacity = '1';
+    const catField = document.getElementById('fCat');
+    catField.disabled = false;
+    catField.style.opacity = '1';
+    document.getElementById('codeLockBtn').style.display = 'none';
+  }
+
+  async function onCatChange() {
+    const cat = document.getElementById('fCat').value;
+    const codeField = document.getElementById('fCode');
+    const warning = document.getElementById('codeWarning');
+
+    if (editingId) {
+      // EDIT MODE — show warning if category changed
+      if (cat !== originalCat) {
+        const next = await seqNext(cat);
+        const newCode = formatCode(cat, next);
+        warning.style.display = 'block';
+        warning.textContent = `Code will change from ${originalCode} → ${newCode}. Save to confirm.`;
+        if (!codeIsLocked) codeField.value = newCode;
+      } else {
+        warning.style.display = 'none';
+        if (!codeIsLocked) codeField.value = originalCode;
+      }
+    } else {
+      // ADD MODE — just suggest next
+      const next = await seqNext(cat);
+      codeField.value = formatCode(cat, next);
+      warning.style.display = 'none';
+    }
   }
 
   // STATS
@@ -890,7 +965,7 @@
           <div class="card-code">${d.code || '—'}</div>
           <div class="card-name">${d.name || 'Unnamed'}</div>
           <div class="card-meta">
-            <span class="cat-badge">${d.cat}</span>
+            <span class="cat-badge">${catLabel(d.cat)}</span>
             <span class="card-price">${d.price ? '₨' + parseInt(d.price).toLocaleString() : '—'}</span>
           </div>
         </div>
@@ -899,11 +974,21 @@
   }
 
   // OPEN ADD
-  function openAdd() {
+  async function openAdd() {
     editingId = null;
     currentImg = null;
+    codeIsLocked = false;
+    originalCode = '';
+    originalCat = '';
     document.getElementById('formTitle').textContent = 'New Dress';
-    document.getElementById('fCode').value = '';
+    document.getElementById('fCat').value = 'B';
+    const next = await seqNext('B');
+    const codeField = document.getElementById('fCode');
+    codeField.value = formatCode('B', next);
+    codeField.readOnly = false;
+    codeField.style.opacity = '1';
+    document.getElementById('codeLockBtn').style.display = 'none';
+    document.getElementById('codeWarning').style.display = 'none';
     document.getElementById('fName').value = '';
     document.getElementById('fCostPrice').value = '';
     document.getElementById('fPrice').value = '';
@@ -911,7 +996,6 @@
     document.getElementById('fFabric').value = '';
     document.getElementById('fColor').value = '';
     document.getElementById('fNotes').value = '';
-    document.getElementById('fCat').value = 'Bridal';
     document.getElementById('fStatus').value = 'Available';
     document.getElementById('imgPreview').style.display = 'none';
     document.getElementById('imgUploadLabel').style.display = 'flex';
@@ -925,9 +1009,20 @@
     if (!d) return;
     editingId = id;
     currentImg = d.img || null;
+    codeIsLocked = true;
+    originalCode = d.code || '';
+    originalCat = d.cat || 'B';
     closeSheet('detailOverlay');
     document.getElementById('formTitle').textContent = 'Edit Dress';
-    document.getElementById('fCode').value = d.code || '';
+    const codeField = document.getElementById('fCode');
+    codeField.value = d.code || '';
+    codeField.readOnly = true;
+    codeField.style.opacity = '0.6';
+    document.getElementById('codeLockBtn').style.display = 'inline';
+    document.getElementById('codeWarning').style.display = 'none';
+    const catField = document.getElementById('fCat');
+    catField.disabled = true;
+    catField.style.opacity = '0.6';
     document.getElementById('fName').value = d.name || '';
     document.getElementById('fCostPrice').value = d.costPrice || '';
     document.getElementById('fPrice').value = d.price || '';
@@ -935,7 +1030,7 @@
     document.getElementById('fFabric').value = d.fabric || '';
     document.getElementById('fColor').value = d.color || '';
     document.getElementById('fNotes').value = d.notes || '';
-    document.getElementById('fCat').value = d.cat || 'Bridal';
+    document.getElementById('fCat').value = d.cat || 'B';
     document.getElementById('fStatus').value = d.status || 'Available';
     document.getElementById('btnDelete').style.display = 'block';
 
@@ -999,6 +1094,15 @@
       return;
     }
 
+    // UPDATE SEQUENCE COUNTER — only if saved number > current counter
+    const codeMatch = dress.code.match(/^GS-([BPFR])-(\d+)$/);
+    if (codeMatch) {
+      const cat = codeMatch[1];
+      const num = parseInt(codeMatch[2]);
+      const current = await seqGet(cat);
+      if (num > current) await seqSet(cat, num);
+    }
+
     await dbPut(dress);
 
     if (editingId) {
@@ -1047,7 +1151,7 @@
         ${d.discountedPrice ? `<div class="detail-field"><label>Discounted Price</label><span style="color:var(--gold)">₨${parseInt(d.discountedPrice).toLocaleString()}</span></div>` : ''}
         <div class="detail-field">
           <label>Category</label>
-          <span>${d.cat}</span>
+          <span>${catLabel(d.cat)}</span>
         </div>
         <div class="detail-field">
           <label>Status</label>
