@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="theme-color" content="#0e0e0d"/>
+<meta name="theme-color" content="#0e0e0d" media="(prefers-color-scheme: dark)"/>
+<meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Inventauri"/>
@@ -25,6 +26,21 @@
     --danger: #c96161;
     --radius: 12px;
     --radius-sm: 8px;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f5f0;
+      --surface: #ffffff;
+      --surface2: #f0ede6;
+      --border: #e0dbd0;
+      --gold: #9a7030;
+      --gold-dim: #b8922a;
+      --text: #1a1814;
+      --text-muted: #9a9488;
+      --text-soft: #5a5550;
+      --danger: #c04040;
+    }
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -818,7 +834,7 @@
     padding: 10px 12px;
     width: 100%;
     -webkit-appearance: none;
-    color-scheme: dark;
+    color-scheme: dark light;
   }
 
   input[type="date"]:focus { border-color: var(--gold-dim); }
