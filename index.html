@@ -898,7 +898,7 @@ window.onerror = function(msg, src, line, col, err) {
     <div class="brand">Golden Studio <span>Orders</span></div>
     <button class="btn-add" onclick="openOrderAdd()">+ Order</button>
   </div>
-  <div style="padding:0 20px 12px;display:flex;gap:8px;border-bottom:1px solid var(--border);">
+  <div style="padding:12px 20px 12px;display:flex;gap:8px;border-bottom:1px solid var(--border);">
     <div class="search-wrap" style="flex:1">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none">
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -922,6 +922,7 @@ window.onerror = function(msg, src, line, col, err) {
       <option value="RH">Rahat</option>
     </select>
   </div>
+  <div id="stepFilterBar" style="padding:8px 20px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);"></div>
   <div class="orders-list" id="ordersList"></div>
 </div>
 
@@ -1668,7 +1669,7 @@ window.onerror = function(msg, src, line, col, err) {
   let editingOrderId = null;
   let orderImgs = [];
 
-  const PROCESS_STEPS = ['Fabric','Sketch','Dye','Handwork','Final Stitch','Ready'];
+  const PROCESS_STEPS = ['Fabric','Sketch','Dye','Panels Cutting','Handwork','Final Stitch','Ready'];
   const STEP_STATES = ['idle','progress','done'];
 
   const VENDOR_LABELS = { AZ:'Azra', H:'Hina', RZ:'Raziya', FR:'Farah' };
@@ -1933,6 +1934,7 @@ window.onerror = function(msg, src, line, col, err) {
       actualDate: document.getElementById('oActualDate').value,
       imgs: [...orderImgs],
       steps: JSON.parse(JSON.stringify(currentSteps)),
+      completed: editingOrderId ? (orders.find(x => x.id === editingOrderId)?.completed || false) : false,
       updatedAt: Date.now()
     };
 
@@ -1968,13 +1970,77 @@ window.onerror = function(msg, src, line, col, err) {
     document.getElementById('lightbox').style.display = 'none';
   }
 
+  // STEP FILTER STATE
+  let activeStepFilter = ''; // '' = all active, 'completed' = completed only, or step name
+
+  // MARK COMPLETED
+  async function markOrderCompleted(id) {
+    const o = orders.find(x => x.id === id);
+    if (!o) return;
+    o.completed = true;
+    o.updatedAt = Date.now();
+    await oDbPut(o);
+    closeSheet('orderDetailOverlay');
+    renderStepFilters();
+    renderOrders();
+  }
+
+  // RENDER STEP FILTER CAPSULES
+  function renderStepFilters() {
+    const activeOrders = orders.filter(o => !o.completed);
+    const completedCount = orders.filter(o => o.completed).length;
+
+    const stepCounts = {};
+    PROCESS_STEPS.forEach(s => { stepCounts[s] = 0; });
+    activeOrders.forEach(o => {
+      const inProgress = o.steps.find(s => s.state === 'progress');
+      const lastDone = [...o.steps].reverse().find(s => s.state === 'done');
+      const current = inProgress || lastDone;
+      if (current) stepCounts[current.name] = (stepCounts[current.name] || 0) + 1;
+    });
+
+    const bar = document.getElementById('stepFilterBar');
+    if (!bar) return;
+
+    const allBtn = `<button onclick="setStepFilter('')" style="white-space:nowrap;padding:5px 12px;border-radius:100px;border:1px solid ${activeStepFilter===''?'var(--gold)':'var(--border)'};background:${activeStepFilter===''?'rgba(201,169,97,0.15)':'transparent'};color:${activeStepFilter===''?'var(--gold)':'var(--text-muted)'};font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;">All <span style="opacity:0.7">${activeOrders.length}</span></button>`;
+
+    const stepBtns = PROCESS_STEPS.map(s => {
+      const count = stepCounts[s] || 0;
+      const isActive = activeStepFilter === s;
+      return `<button onclick="setStepFilter('${s}')" style="white-space:nowrap;padding:5px 12px;border-radius:100px;border:1px solid ${isActive?'var(--gold)':'var(--border)'};background:${isActive?'rgba(201,169,97,0.15)':'transparent'};color:${isActive?'var(--gold)':'var(--text-muted)'};font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;">${s} <span style="opacity:0.7">${count}</span></button>`;
+    }).join('');
+
+    const completedBtn = `<button onclick="setStepFilter('completed')" style="white-space:nowrap;padding:5px 12px;border-radius:100px;border:1px solid ${activeStepFilter==='completed'?'rgba(125,196,125,0.6)':'var(--border)'};background:${activeStepFilter==='completed'?'rgba(125,196,125,0.1)':'transparent'};color:${activeStepFilter==='completed'?'#7dc47d':'var(--text-muted)'};font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;">Completed <span style="opacity:0.7">${completedCount}</span></button>`;
+
+    bar.innerHTML = allBtn + stepBtns + completedBtn;
+  }
+
+  function setStepFilter(val) {
+    activeStepFilter = val;
+    renderStepFilters();
+    renderOrders();
+  }
+
   // RENDER ORDERS LIST
   function renderOrders() {
+    renderStepFilters();
     const q = (document.getElementById('orderSearchInput')?.value || '').toLowerCase();
     const fVendor = document.getElementById('filterVendor')?.value || '';
     const fAgent  = document.getElementById('filterAgent')?.value || '';
 
     let filtered = orders.filter(o => {
+      // completed filter
+      if (activeStepFilter === 'completed') return o.completed;
+      if (!activeStepFilter) { if (o.completed) return false; } // hide completed from default
+      else {
+        if (o.completed) return false;
+        // filter by current step
+        const inProgress = o.steps.find(s => s.state === 'progress');
+        const lastDone = [...o.steps].reverse().find(s => s.state === 'done');
+        const current = inProgress || lastDone;
+        if (!current || current.name !== activeStepFilter) return false;
+      }
+
       const matchQ = !q ||
         (o.customer || '').toLowerCase().includes(q) ||
         (VENDOR_LABELS[o.vendor] || '').toLowerCase().includes(q) ||
@@ -1995,12 +2061,15 @@ window.onerror = function(msg, src, line, col, err) {
     }
 
     list.innerHTML = filtered.map(o => {
-      const lastStep = [...o.steps].reverse().find(s => s.state === 'done');
-      const currentStep = o.steps.find(s => s.state === 'progress') || lastStep;
+      const inProgress = o.steps.find(s => s.state === 'progress');
+      const lastDone = [...o.steps].reverse().find(s => s.state === 'done');
+      const currentStep = inProgress || lastDone;
       const isReady = o.steps[o.steps.length-1].state === 'done';
       const vendorLabel = VENDOR_LABELS[o.vendor] || '';
       const agentLabel  = AGENT_LABELS[o.agent] || '';
       const thumb = o.imgs && o.imgs.length ? `<img src="${o.imgs[0]}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid var(--border)"/>` : '';
+      const statusLabel = o.completed ? 'Completed' : isReady ? 'Ready' : currentStep ? currentStep.name : 'New';
+      const statusClass = o.completed ? 'ready' : isReady ? 'ready' : '';
       return `
         <div class="order-card" onclick="openOrderDetail('${o.id}')">
           <div style="display:flex;gap:12px;align-items:flex-start">
@@ -2008,7 +2077,7 @@ window.onerror = function(msg, src, line, col, err) {
             <div style="flex:1;min-width:0">
               <div class="order-card-top">
                 <div class="order-id">${o.orderId || '—'}</div>
-                <div class="order-status-badge ${isReady ? 'ready' : ''}">${isReady ? 'Ready' : currentStep ? currentStep.name : 'New'}</div>
+                <div class="order-status-badge ${statusClass}">${statusLabel}</div>
               </div>
               <div class="order-name">${o.customer || 'Unnamed Customer'}</div>
               <div class="order-meta">
@@ -2016,11 +2085,11 @@ window.onerror = function(msg, src, line, col, err) {
                 ${agentLabel ? `<span>Agent: ${agentLabel}</span>` : ''}
                 ${o.expectedDate ? `<span>Due: ${o.expectedDate}</span>` : ''}
               </div>
-              <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
+              ${!o.completed ? `<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap;">
                 ${o.steps.map(s => `
                   <span style="font-size:10px;padding:2px 7px;border-radius:100px;border:1px solid ${s.state==='done'?'rgba(125,196,125,0.4)':s.state==='progress'?'rgba(201,160,48,0.4)':'var(--border)'};color:${s.state==='done'?'#7dc47d':s.state==='progress'?'#c9a030':'var(--text-muted)'};">${s.name}</span>
                 `).join('')}
-              </div>
+              </div>` : ''}
             </div>
           </div>
         </div>`;
@@ -2081,6 +2150,7 @@ window.onerror = function(msg, src, line, col, err) {
 
       <div class="btn-row">
         <button class="btn-ghost" onclick="closeSheet('orderDetailOverlay')">Close</button>
+        ${!o.completed ? `<button class="btn-ghost" style="color:#7dc47d;border-color:rgba(125,196,125,0.3)" onclick="markOrderCompleted('${o.id}')">✓ Complete</button>` : ''}
         <button class="btn-primary" onclick="openOrderEdit('${o.id}')">Edit</button>
       </div>
     `;
@@ -2118,6 +2188,7 @@ window.onerror = function(msg, src, line, col, err) {
     renderGrid();
     renderStats();
     renderOrders();
+    renderStepFilters();
   });
 
   // UNREGISTER ANY EXISTING SERVICE WORKERS
